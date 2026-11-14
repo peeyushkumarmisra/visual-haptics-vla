@@ -1,0 +1,43 @@
+# ==============================================================================
+#  FILE: rt1_sim_bringup/config/gz_bridge.yaml
+# ==============================================================================
+#  Target:  One-way Gazebo -> ROS 2 bridge for sim clock and both cameras.
+#  Inputs & Outputs:
+#    /clock                 rosgraph_msgs/Clock      (all nodes use sim time)
+#    /cam_*/image           sensor_msgs/Image        448x224 rgb8, 30 Hz
+#    /cam_*/camera_info     sensor_msgs/CameraInfo   intrinsics for d_px later
+#  Joint states are NOT bridged: ros2_control publishes /joint_states itself.
+# ==============================================================================
+
+# == 1. SIMULATION CLOCK ==
+- ros_topic_name: "/clock"
+  gz_topic_name: "/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
+
+# == 2. cam_side (profile view: finger gap, slip) ==
+- ros_topic_name: "/cam_side/image"
+  gz_topic_name: "/cam_side/image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/cam_side/camera_info"
+  gz_topic_name: "/cam_side/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
+# == 3. cam_top (overhead: workspace and bins) ==
+- ros_topic_name: "/cam_top/image"
+  gz_topic_name: "/cam_top/image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/cam_top/camera_info"
+  gz_topic_name: "/cam_top/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS

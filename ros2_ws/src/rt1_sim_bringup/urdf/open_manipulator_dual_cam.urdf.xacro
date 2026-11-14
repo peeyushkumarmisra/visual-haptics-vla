@@ -1,0 +1,227 @@
+<?xml version="1.0"?>
+<!--
+==============================================================================
+ FILE: rt1_sim_bringup/urdf/open_manipulator_dual_cam.urdf.xacro
+==============================================================================
+ Target:
+   Assemble the OpenMANIPULATOR-X for simulation from the stock ROBOTIS arm
+   and gazebo xacros, with OUR ros2_control block (arm = position control,
+   gripper = effort control) and two fixed RGB cameras (cam_side, cam_top)
+   with REP-103 optical frames. Used by sim_arena.launch.py.
+
+ Physics / Math Implemented:
+   Gripper (effort control, force-limited like the real Dynamixel mode 5):
+     Both finger joint axes point OUTWARD, so closing = NEGATIVE effort.
+     Squeeze force per finger F (N) compresses each block plate by
+         x = F / k                    (Hooke, spring plate stiffness k)
+     Baseline F ~ 2 N from the slip window (mu = 0.8):
+         m_light * g < 2 * mu * F < m_heavy * g   ->   0.31 N < F < 3.06 N
+   Cameras:
+     visible_width_at_block = cube_size * image_width_px / cube_span_px
+     standoff_distance      = visible_width / (2 * tan(HFOV / 2))
+     cam_side: cube spans 80 of 224 px -> 140 mm wide, 70 mm tall view
+               standoff = 0.140 / (2 * tan(0.2)) = 0.345 m
+     cam_top:  HFOV 1.2 rad at 0.45 m -> 0.62 m x 0.31 m footprint
+
+ Inputs & Outputs:
+   ros2_control interfaces:
+     joint1..joint4                          cmd: position (rad)
+     gripper_left_joint, gripper_right_joint cmd: effort (N)
+     all joints                              state: position, velocity, effort
+   Camera topics: /cam_side/image, /cam_top/image (448x224 rgb8, 30 Hz)
+                  /cam_side/camera_info, /cam_top/camera_info
+   Frames: cam_*_link (+X fwd, +Y left, +Z up), cam_*_optical_frame (REP-103)
+==============================================================================
+-->
+<robot name="open_manipulator_x_dual_cam" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- == 1. ARGUMENTS AND PROPERTIES == -->
+  <!-- Cameras are bolted to the fixed arm base (spec 3.1). -->
+  <xacro:arg name="camera_parent" default="link1"/>
+
+  <!-- Our controller config: arm trajectory + gripper effort. -->
+  <xacro:arg name="controllers_yaml"
+             default="$(find rt1_sim_bringup)/config/controllers.yaml"/>
+
+  <!-- 2:1 image so the stitcher's 224x112 downscale keeps square pixels. -->
+  <xacro:property name="img_width_px"  value="448"/>
+  <xacro:property name="img_height_px" value="224"/>
+  <xacro:property name="cam_rate_hz"   value="30"/>
+
+  <!-- cam_side geometry -->
+  <xacro:property name="side_hfov_rad"   value="0.4"/>
+  <xacro:property name="spawn_x_m"       value="0.20"/>
+  <xacro:property name="side_standoff_m" value="0.345"/>
+  <!-- Midpoint of the 0..65 mm band the cube occupies (rest + lift). -->
+  <xacro:property name="side_height_m"   value="0.0325"/>
+
+  <!-- cam_top geometry -->
+  <xacro:property name="top_hfov_rad"    value="1.2"/>
+  <xacro:property name="top_center_x_m"  value="0.15"/>
+  <xacro:property name="top_height_m"    value="0.45"/>
+
+  <!-- == 2. STOCK ROBOT GEOMETRY (links, joints, contact params only) == -->
+  <!-- The stock top-level xacro is NOT included: it would also bring the
+       stock ros2_control block and controller config, which xacro cannot
+       remove. We include only the parts that describe the robot body. -->
+  <xacro:include filename="$(find open_manipulator_description)/gazebo/open_manipulator_x.gazebo.xacro"/>
+       <!-- Copy of the stock arm xacro with BOTH finger joints damped at 5 N*s/m
+          (stock: left 0.1, right 0.7). The asymmetry made the left finger close
+          7x faster and shove the block sideways (G2, 13 Nov). -->
+  <xacro:include filename="$(find rt1_sim_bringup)/urdf/open_manipulator_x_arm_eqdamp.urdf.xacro"/>
+
+  <!-- Weld the base to the world so Gazebo treats the arm as fixed. -->
+  <link name="world"/>
+  <joint name="world_fixed" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <parent link="world"/>
+    <child link="link1"/>
+  </joint>
+
+  <xacro:open_manipulator_x prefix=""/>
+  <xacro:open_manipulator_x_gazebo prefix=""/>
+
+  <!-- == 3. ROS2_CONTROL: ARM POSITION, GRIPPER EFFORT == -->
+  <!-- Arm joints follow joint-space trajectories (position command). -->
+  <xacro:macro name="position_joint" params="name">
+    <joint name="${name}">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- Finger joints take a force command (N). Both fingers are commanded
+       explicitly with the same value instead of relying on a ros2_control
+       mimic, whose effort handling in gz_ros2_control is not guaranteed. -->
+  <xacro:macro name="effort_joint" params="name">
+    <joint name="${name}">
+      <command_interface name="effort"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+  </xacro:macro>
+
+  <ros2_control name="OpenManipulatorXSystem" type="system">
+    <hardware>
+      <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+    </hardware>
+    <xacro:position_joint name="joint1"/>
+    <xacro:position_joint name="joint2"/>
+    <xacro:position_joint name="joint3"/>
+    <xacro:position_joint name="joint4"/>
+    <xacro:effort_joint name="gripper_left_joint"/>
+    <!-- mimic="false" overrides the URDF <mimic> tag for ros2_control.
+        DART has no mimic constraint, so each finger is commanded on its own. -->
+    <joint name="gripper_right_joint" mimic="false">
+      <command_interface name="effort"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+  </ros2_control>
+
+  <!-- == 4. GAZEBO ROS2_CONTROL PLUGIN == -->
+  <!-- Starts the controller manager inside Gazebo with OUR config. -->
+  <gazebo>
+    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(arg controllers_yaml)</parameters>
+    </plugin>
+  </gazebo>
+
+  <!-- == 5. CAMERA MACRO == -->
+  <!-- Builds body link + mount joint + optical frame + Gazebo sensor.
+       One macro guarantees both cameras share format (the stitcher relies on it). -->
+  <xacro:macro name="fixed_rgb_camera" params="name parent xyz rpy hfov">
+
+    <!-- Body frame: Gazebo renders along this link's +X axis. -->
+    <link name="${name}_link">
+      <!-- Housing sits BEHIND the lens (-X) so the camera never sees itself.
+           No collision: cameras must not touch the arm or block. -->
+      <visual>
+        <origin xyz="-0.015 0 0" rpy="0 0 0"/>
+        <geometry><box size="0.02 0.03 0.02"/></geometry>
+      </visual>
+      <!-- Tiny inertia only to satisfy parsers; welded by a fixed joint. -->
+      <inertial>
+        <mass value="0.001"/>
+        <inertia ixx="1e-7" iyy="1e-7" izz="1e-7" ixy="0" ixz="0" iyz="0"/>
+      </inertial>
+    </link>
+
+    <joint name="${name}_mount_joint" type="fixed">
+      <parent link="${parent}"/>
+      <child link="${name}_link"/>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+    </joint>
+
+    <!-- REP-103 optical frame: body (+X fwd) -> optical (+Z fwd, +X right, +Y down). -->
+    <link name="${name}_optical_frame"/>
+    <joint name="${name}_optical_joint" type="fixed">
+      <parent link="${name}_link"/>
+      <child link="${name}_optical_frame"/>
+      <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+    </joint>
+
+    <gazebo reference="${name}_link">
+      <sensor name="${name}" type="camera">
+        <always_on>true</always_on>
+        <update_rate>${cam_rate_hz}</update_rate>
+        <visualize>true</visualize>
+        <topic>${name}/image</topic>
+        <!-- Image headers carry the optical frame, so pixels follow REP-103. -->
+        <gz_frame_id>${name}_optical_frame</gz_frame_id>
+        <camera>
+          <horizontal_fov>${hfov}</horizontal_fov>
+          <image>
+            <width>${img_width_px}</width>
+            <height>${img_height_px}</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip><near>0.02</near><far>3.0</far></clip>
+          <!-- Mild noise (~1.8/255) so the policy never trains on perfect renders. -->
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.007</stddev>
+          </noise>
+        </camera>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- == 6. cam_side: TABLE-LEVEL PROFILE VIEW == -->
+  <!-- On +X looking back along -X (yaw = pi). At q1 = 0 the fingers close
+       along +/-Y, so the finger gap spans the image width (spec 3.2). -->
+  <xacro:fixed_rgb_camera
+      name="cam_side"
+      parent="$(arg camera_parent)"
+      xyz="${spawn_x_m + side_standoff_m} 0 ${side_height_m}"
+      rpy="0 0 ${pi}"
+      hfov="${side_hfov_rad}"/>
+
+  <!-- == 7. cam_top: OVERHEAD WORKSPACE VIEW == -->
+  <!-- Pitch +pi/2 points body +X straight down. Image: up = world +X,
+       left = world +Y (Left bin on the left). -->
+  <xacro:fixed_rgb_camera
+      name="cam_top"
+      parent="$(arg camera_parent)"
+      xyz="${top_center_x_m} 0 ${top_height_m}"
+      rpy="0 ${pi/2} 0"
+      hfov="${top_hfov_rad}"/>
+
+  <!-- == 8. HIDE STOCK END-EFFECTOR MARKER == -->
+  <!-- The stock model draws a 1 cm pure-red box at end_effector_link.
+       Red clashes with the red bin in HSV segmentation, and the box sits
+       inside the block during a grasp. It has no collision, so hiding it
+       changes no physics. The <visual> blob below is merged into every
+       visual of that link when Gazebo converts the URDF to SDF. -->
+  <gazebo reference="end_effector_link">
+    <visual>
+      <transparency>1.0</transparency>
+    </visual>
+  </gazebo>
+
+</robot>

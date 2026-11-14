@@ -1,0 +1,30 @@
+# == ROS 2 / colcon build output ==
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+build/
+install/
+log/
+
+# == Data: episodes are large and regenerable; keep only result CSVs ==
+data/*
+!data/*.csv
+
+# == Python ==
+__pycache__/
+*.pyc
+.venv/
+
+# == ML artefacts (published as releases, not in git) ==
+*.pt
+*.pth
+*.onnx
+*.engine
+checkpoints/
+runs/
+
+# == Editors / OS ==
+.vscode/
+.idea/
+*.swp
+.DS_Store

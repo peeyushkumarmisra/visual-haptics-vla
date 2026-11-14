@@ -1,0 +1,200 @@
+<?xml version="1.0"?>
+<!--
+==============================================================================
+ FILE: rt1_sim_bringup/urdf/mystery_block.sdf.xacro
+==============================================================================
+ Target:
+   The unknown object the arm probes and sorts. A 50 mm cube built as a rigid
+   core plus two face plates on the +/-Y sides (the faces the fingers squeeze
+   at joint1 = 0). Hidden properties (mass m, plate stiffness k, damping c,
+   friction mu) are set per episode by mystery_spawner.py. Its LOOK never
+   changes, so the policy can only tell blocks apart by how they behave.
+
+ Physics / Math Implemented:
+   Soft block: each plate rides a prismatic joint whose spring-damper is
+   applied EXPLICITLY by gz JointPositionController (target 0):
+       F_plate = -k * q - c * dq/dt        ->   static: x = F / k
+   Why explicit (G2 root cause, 14 Nov): DART's built-in joint spring and
+   damping are implicit; they add h*c + h^2*k to the joint's effective mass,
+   which biased contact equilibria by
+       k*x/F = [1 + (h*c + h^2*k)/m_plate] / [1 + h*b/m_finger]
+   (validated to 0.02 % over 13 runs). An explicit force adds nothing, so the
+   plate-side factor is exactly 1.
+   Explicit stability (h = 1 ms): omega*h = sqrt(k/m_plate)*h < 2 and
+   c*h/m_plate < 2. Soft range k <= 2000 N/m, m_plate 20 g: omega*h <= 0.32.
+   Rigid block (rigid:=true): plates welded with fixed joints. A rigid object
+   has no compliance; a very stiff spring is what broke the solver.
+   Suggested damping (zeta ~ 0.5): c = sqrt(k * m_plate)
+   Box inertia (sides a, b, h along x, y, z):
+       Ixx = m (b^2 + h^2) / 12,  Iyy = m (a^2 + h^2) / 12,  Izz = m (a^2 + b^2) / 12
+   Slip under a two-finger grip (micro-lift):  slips when  m * g > 2 * mu * F
+
+ Inputs & Outputs:
+   xacro args : name        (str)    model name, default mystery_block
+                mass        (kg)     total mass, 0.05 .. 0.50
+                k           (N/m)    plate stiffness, soft range 100 .. 2000
+                c           (N*s/m)  plate damping
+                mu          (-)      Coulomb friction of all faces
+                rigid       (bool)   true = plates welded (no compliance)
+                plate_mass  (kg)     each plate, default 0.02
+   Output     : SDF 1.9 model, frame at the cube centre (spawn at z = 0.025 m).
+                Soft: joints plate_pos_y_joint, plate_neg_y_joint,
+                0 = rest, + = inward compression (m), travel -0.5 .. 8 mm.
+                Joint states on /world/<world>/model/<name>/joint_state.
+==============================================================================
+-->
+<sdf version="1.9" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- == 1. ARGUMENTS (set by the spawner each episode) == -->
+  <xacro:arg name="name"       default="mystery_block"/>
+  <xacro:arg name="mass"       default="0.10"/>
+  <xacro:arg name="k"          default="400"/>
+  <xacro:arg name="c"          default="2.83"/>
+  <xacro:arg name="mu"         default="0.8"/>
+  <xacro:arg name="rigid"      default="false"/>
+  <xacro:arg name="plate_mass" default="0.02"/>
+
+  <!-- == 2. FIXED GEOMETRY AND DERIVED MASS PROPERTIES == -->
+  <!-- Outer cube is always 50 mm: a size cue would let the policy skip the probe. -->
+  <xacro:property name="size_m"        value="0.05"/>
+  <!-- 13 mm plates over a 24 mm core: at full 8 mm travel the plate outer
+       face (17 mm) still covers the core face (12 mm), so no seam shows. -->
+  <xacro:property name="plate_t_m"     value="0.013"/>
+  <xacro:property name="core_w_m"      value="${size_m - 2 * plate_t_m}"/>
+  <xacro:property name="plate_y_m"     value="${core_w_m / 2 + plate_t_m / 2}"/>
+  <xacro:property name="travel_m"      value="0.008"/>
+  <!-- Plate collision 2 mm shorter and lifted 1 mm: plates never rest on the
+       table, so table friction cannot resist the squeeze. Visual is full 50 mm. -->
+  <xacro:property name="plate_col_h_m" value="${size_m - 0.002}"/>
+
+  <!-- 20 g plates (was 5 g): keeps the explicit spring well inside its
+       stability limit across the soft range. Core carries the rest. -->
+  <xacro:property name="plate_mass_kg" value="$(arg plate_mass)"/>
+  <xacro:property name="total_mass_kg" value="$(arg mass)"/>
+  <xacro:property name="core_mass_kg"  value="${total_mass_kg - 2 * plate_mass_kg}"/>
+
+  <!-- == 3. REUSABLE PIECES == -->
+  <!-- Purple (HSV hue 278 deg): far from the red bin, blue bin, yellow marker
+       and green fingertips; saturated against the white table and grey arm. -->
+  <xacro:macro name="purple">
+    <material>
+      <ambient>0.55 0.20 0.75 1</ambient>
+      <diffuse>0.55 0.20 0.75 1</diffuse>
+      <specular>0.05 0.05 0.05 1</specular>
+    </material>
+  </xacro:macro>
+
+  <!-- Friction on every face; no bounce (motion unrelated to m or k). -->
+  <xacro:macro name="surface">
+    <surface>
+      <friction>
+        <ode>
+          <mu>$(arg mu)</mu>
+          <mu2>$(arg mu)</mu2>
+        </ode>
+      </friction>
+      <bounce>
+        <restitution_coefficient>0.0</restitution_coefficient>
+      </bounce>
+    </surface>
+  </xacro:macro>
+
+  <xacro:macro name="box_inertial" params="m a b h">
+    <inertial>
+      <mass>${m}</mass>
+      <inertia>
+        <ixx>${m * (b * b + h * h) / 12.0}</ixx>
+        <iyy>${m * (a * a + h * h) / 12.0}</iyy>
+        <izz>${m * (a * a + b * b) / 12.0}</izz>
+        <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+      </inertia>
+    </inertial>
+  </xacro:macro>
+
+  <!-- One plate: link + joint (+ explicit spring when soft).
+       axis_y points INWARD, so a positive joint position is compression. -->
+  <xacro:macro name="plate" params="side sign axis_y">
+    <link name="plate_${side}_link">
+      <pose>0 ${sign * plate_y_m} 0 0 0 0</pose>
+      <xacro:box_inertial m="${plate_mass_kg}" a="${size_m}" b="${plate_t_m}" h="${size_m}"/>
+      <collision name="plate_${side}_collision">
+        <pose>0 0 0.001 0 0 0</pose>
+        <geometry><box><size>${size_m} ${plate_t_m} ${plate_col_h_m}</size></box></geometry>
+        <xacro:surface/>
+      </collision>
+      <visual name="plate_${side}_visual">
+        <geometry><box><size>${size_m} ${plate_t_m} ${size_m}</size></box></geometry>
+        <xacro:purple/>
+      </visual>
+    </link>
+
+    <!-- Rigid block: plate welded to the core. -->
+    <xacro:if value="$(arg rigid)">
+      <joint name="plate_${side}_joint" type="fixed">
+        <parent>core_link</parent>
+        <child>plate_${side}_link</child>
+      </joint>
+    </xacro:if>
+
+    <!-- Soft block: free prismatic joint; NO <dynamics> spring or damping,
+         because DART would integrate them implicitly (the G2 bias). -->
+    <xacro:unless value="$(arg rigid)">
+      <joint name="plate_${side}_joint" type="prismatic">
+        <parent>core_link</parent>
+        <child>plate_${side}_link</child>
+        <axis>
+          <xyz>0 ${axis_y} 0</xyz>
+          <!-- Lower limit 0.5 mm OUTWARD of rest so the rest point is not on a
+               hard limit (gravity test, 14 Nov); upper = full compression stop. -->
+          <limit>
+            <lower>-0.0005</lower>
+            <upper>${travel_m}</upper>
+          </limit>
+        </axis>
+      </joint>
+
+      <!-- Explicit spring-damper: PD to target 0, computed by Gazebo every
+           physics step and applied as a joint force: F = -k*q - c*dq/dt.
+           Force capped at 50 N, far above any squeeze, so it never saturates. -->
+      <plugin filename="gz-sim-joint-position-controller-system"
+              name="gz::sim::systems::JointPositionController">
+        <joint_name>plate_${side}_joint</joint_name>
+        <p_gain>$(arg k)</p_gain>
+        <i_gain>0</i_gain>
+        <d_gain>$(arg c)</d_gain>
+        <cmd_max>50</cmd_max>
+        <cmd_min>-50</cmd_min>
+        <initial_position>0</initial_position>
+      </plugin>
+    </xacro:unless>
+  </xacro:macro>
+
+  <model name="$(arg name)">
+    <static>false</static>
+    <!-- Plates slide into the core volume when compressed; parts of one
+         block must not collide with each other. -->
+    <self_collide>false</self_collide>
+
+    <!-- == 4. RIGID CORE == -->
+    <link name="core_link">
+      <xacro:box_inertial m="${core_mass_kg}" a="${size_m}" b="${core_w_m}" h="${size_m}"/>
+      <collision name="core_collision">
+        <geometry><box><size>${size_m} ${core_w_m} ${size_m}</size></box></geometry>
+        <xacro:surface/>
+      </collision>
+      <visual name="core_visual">
+        <geometry><box><size>${size_m} ${core_w_m} ${size_m}</size></box></geometry>
+        <xacro:purple/>
+      </visual>
+    </link>
+
+    <!-- == 5. PLATES (+Y moves inward along -Y, and vice versa) == -->
+    <xacro:plate side="pos_y" sign="1"  axis_y="-1"/>
+    <xacro:plate side="neg_y" sign="-1" axis_y="1"/>
+
+    <!-- == 6. DIAGNOSTICS == -->
+    <!-- Plate joint positions on /world/<world>/model/<name>/joint_state. -->
+    <plugin filename="gz-sim-joint-state-publisher-system"
+            name="gz::sim::systems::JointStatePublisher"/>
+  </model>
+</sdf>

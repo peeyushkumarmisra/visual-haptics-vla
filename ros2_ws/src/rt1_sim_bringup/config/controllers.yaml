@@ -1,0 +1,60 @@
+# ==============================================================================
+#  FILE: rt1_sim_bringup/config/controllers.yaml
+# ==============================================================================
+#  Target:
+#    Controller set loaded by gz_ros2_control inside Gazebo. Arm keeps the stock
+#    ROBOTIS trajectory tuning; the stock position GripperActionController is
+#    replaced by a direct effort controller so grip FORCE is the command.
+#
+#  Physics / Math Implemented:
+#    Gripper command u = [F_left, F_right] in N, applied as joint effort.
+#    Finger axes point outward: u < 0 closes (squeeze), u > 0 opens.
+#    Against a spring plate of stiffness k, each finger settles where
+#        F = k * x   ->   x = F / k
+#
+#  Inputs & Outputs:
+#    /arm_controller/follow_joint_trajectory   action, joints 1..4 (rad)
+#    /gripper_effort_controller/commands       std_msgs/Float64MultiArray,
+#                                              data: [F_left, F_right] (N)
+#    /joint_states                             position, velocity, effort
+# ==============================================================================
+
+# == 1. CONTROLLER MANAGER ==
+controller_manager:
+  ros__parameters:
+    # 100 Hz as stock: above the 50 Hz FSM and guardrail rates.
+    update_rate: 100
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    # Replaces the stock position_controllers/GripperActionController.
+    gripper_effort_controller:
+      type: effort_controllers/JointGroupEffortController
+
+# == 2. ARM (copied from stock hardware_controller_manager.yaml) ==
+arm_controller:
+  ros__parameters:
+    joints:
+      - joint1
+      - joint2
+      - joint3
+      - joint4
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    allow_partial_joints_goal: true
+
+# == 3. GRIPPER (force control) ==
+# Both fingers listed so each gets its command explicitly, whether or not
+# Gazebo enforces the URDF mimic constraint between them.
+gripper_effort_controller:
+  ros__parameters:
+    joints:
+      - gripper_left_joint
+      - gripper_right_joint

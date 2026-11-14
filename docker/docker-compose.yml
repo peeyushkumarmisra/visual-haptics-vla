@@ -1,0 +1,57 @@
+# visual_haptics_vla dev environment (Windows 11 + WSL2 + Docker Desktop)
+# Start:  docker compose up -d       Shell:  docker compose exec sim bash
+# Stop:   docker compose down        (named volumes keep colcon build output)
+services:
+  sim:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: visual_haptics_vla:latest
+    container_name: visual_haptics_vla
+    command: sleep infinity
+    working_dir: /workspace/ros2_ws
+    environment:
+      # --- Display through WSLg ---
+      - DISPLAY=${DISPLAY}
+      - WAYLAND_DISPLAY=${WAYLAND_DISPLAY}
+      - XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}
+      - QT_X11_NO_MITSHM=1
+      # --- Gazebo renders on the Radeon iGPU; GTX 1650 stays free for PyTorch ---
+      - GALLIUM_DRIVER=d3d12
+      - MESA_D3D12_DEFAULT_ADAPTER_NAME=AMD
+      - LD_LIBRARY_PATH=/usr/lib/wsl/lib
+      # --- CUDA on the GTX 1650 ---
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility
+      # --- ROS 2: keep DDS traffic inside this machine ---
+      - ROS_DOMAIN_ID=42
+      - ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /mnt/wslg:/mnt/wslg
+      - /usr/lib/wsl:/usr/lib/wsl
+      # Source and data live on the WSL filesystem (fast, visible from WSL)
+      - ../ros2_ws/src:/workspace/ros2_ws/src:rw
+      - ../data:/workspace/data:rw
+      # Build output in named volumes: survives `down`, avoids bind-mount slowness
+      - ws_build:/workspace/ros2_ws/build
+      - ws_install:/workspace/ros2_ws/install
+      - ws_log:/workspace/ros2_ws/log
+    devices:
+      - /dev/dxg:/dev/dxg
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    ipc: host
+    shm_size: '2gb'
+    stdin_open: true
+    tty: true
+
+volumes:
+  ws_build:
+  ws_install:
+  ws_log:
