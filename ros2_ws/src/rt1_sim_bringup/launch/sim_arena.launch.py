@@ -124,14 +124,12 @@ def generate_launch_description():
         parameters=[{'config_file': bridge_yaml, 'use_sim_time': True}],
         output='screen')
 
-    # == 8. GRIPPER FORCE LAYER ==
-    # One force command F -> two finger efforts + centring (DART has no mimic).
+        # == 8. GRIPPER FORCE LAYER ==
+    # One force command F (N, > 0 squeeze) -> equal efforts on both fingers.
     gripper_force = Node(
         package='rt1_sim_bringup',
         executable='gripper_force_node.py',
-        parameters=[{'use_sim_time': True,
-                        'centering_stiffness_n_per_m': 0.0,
-                        'centering_damping_ns_per_m': 0.0}],
+        parameters=[{'use_sim_time': True}],
         output='screen')
 
     return LaunchDescription([

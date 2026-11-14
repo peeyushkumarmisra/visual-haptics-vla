@@ -14,7 +14,7 @@ services:
       # --- Display through WSLg ---
       - DISPLAY=${DISPLAY}
       - WAYLAND_DISPLAY=${WAYLAND_DISPLAY}
-      - XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}
+      - XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir
       - QT_X11_NO_MITSHM=1
       # --- Gazebo renders on the Radeon iGPU; GTX 1650 stays free for PyTorch ---
       - GALLIUM_DRIVER=d3d12

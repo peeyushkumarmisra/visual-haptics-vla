@@ -43,6 +43,25 @@
       <direction>-0.3 0.2 -0.9</direction>
     </light>
 
+    <!-- Ground plane 0.75 m below the table top: catches dropped blocks so
+         they do not fall forever. Out of both camera views. -->
+    <model name="ground_plane">
+      <static>true</static>
+      <pose>0 0 -0.75 0 0 0</pose>
+      <link name="ground_link">
+        <collision name="ground_collision">
+          <geometry><plane><normal>0 0 1</normal><size>10 10</size></plane></geometry>
+        </collision>
+        <visual name="ground_visual">
+          <geometry><plane><normal>0 0 1</normal><size>10 10</size></plane></geometry>
+          <material>
+            <ambient>0.6 0.6 0.6 1</ambient>
+            <diffuse>0.6 0.6 0.6 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
     <!-- Tabletop: top surface flush at z = 0.0 m -->
     <model name="work_table">
       <static>true</static>

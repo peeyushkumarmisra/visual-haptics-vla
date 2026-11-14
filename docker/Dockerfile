@@ -61,7 +61,10 @@ RUN mkdir -p src && cd src && \
     git -C robotis_interfaces checkout ${RB_IF_REF}
 
 RUN . /opt/ros/jazzy/setup.sh && \
-    apt-get update && rosdep update && \
+    apt-get update && \
+    # Jazzy index only (much smaller), with retries: raw.githubusercontent.com
+    # can time out (build failure 14 Nov).
+    for i in 1 2 3; do rosdep update --rosdistro jazzy && break || sleep 15; done && \
     rosdep install --from-paths src --ignore-src -r -y && \
     colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release && \
     rm -rf /var/lib/apt/lists/*
@@ -100,6 +103,8 @@ RUN printf '%s\n' \
     'source /opt/ros/jazzy/setup.bash' \
     'source /opt/robotis_ws/install/setup.bash' \
     '[ -f /workspace/ros2_ws/install/setup.bash ] && source /workspace/ros2_ws/install/setup.bash' \
+    "alias cb='cd /workspace/ros2_ws && colcon build --symlink-install && source install/setup.bash'" \
+    '[ -f /workspace/ros2_ws/src/rt1_sim_bringup/scripts/sim_helpers.sh ] && source /workspace/ros2_ws/src/rt1_sim_bringup/scripts/sim_helpers.sh' \
     >> ~/.bashrc
 
 WORKDIR /workspace
