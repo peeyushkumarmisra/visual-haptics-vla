@@ -202,6 +202,11 @@
           <color rgba="0.2 0.2 0.2 1"/>
         </material>
       </visual>
+      <visual>
+        <origin xyz="0.0655 0.002 0" rpy="0 0 0"/>
+        <geometry><box size="0.002 0.004 0.010"/></geometry>
+        <material name="fingertip_green"><color rgba="0.0 1.0 0.0 1.0"/></material>
+      </visual>
 
             <!-- Collision replaced (13 Nov, G2): the stock mesh's innermost point is a
            small nub near the palm (local x -0.005..0.005, z +0.010..+0.015), so the
@@ -247,8 +252,14 @@
           <color rgba="0.2 0.2 0.2 1"/>
         </material>
       </visual>
+      <!-- Fingertip marker (right finger): pad is mirrored in y, so y = -0.002. -->
+      <visual>
+        <origin xyz="0.0655 -0.002 0" rpy="0 0 0"/>
+        <geometry><box size="0.002 0.004 0.010"/></geometry>
+        <material name="fingertip_green_r"><color rgba="0.0 1.0 0.0 1.0"/></material>
+      </visual>
 
-            <!-- Mirror of the left finger (inner side faces +y). See left finger. -->
+      <!-- Mirror of the left finger (inner side faces +y). See left finger. -->
       <collision name="pad">
         <origin xyz="0.0425 -0.002 0" rpy="0 0 0"/>
         <geometry><box size="0.045 0.004 0.029"/></geometry>
