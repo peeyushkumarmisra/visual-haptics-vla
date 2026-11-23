@@ -108,14 +108,14 @@ class Collector(Node):
                 csv.writer(handle).writerow(CSV_COLUMNS)
         attempted = successes = consecutive_errors = 0
         while self.num_episodes == 0 or attempted < self.num_episodes:
-            reply = self.call_trigger(self.next_client, 60.0)
+            reply = self.call_trigger(self.next_client, 120.0)
             if reply is None or not reply.success:
                 message = reply.message if reply else "no reply from /episode/next"
                 if "schedule complete" in message:
                     self.get_logger().info("Schedule complete.")
                     break
                 consecutive_errors += 1
-                self.get_logger().error(f"spawn error: {message}")
+                self.get_logger().error(f"spawn error: {message[-120:]}")
                 if consecutive_errors >= 3:
                     break
                 continue

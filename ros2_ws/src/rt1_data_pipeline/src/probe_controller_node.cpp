@@ -28,29 +28,28 @@
 //   Cli : /probe/latch_reference, /probe/clear_reference (std_srvs/Trigger)
 //   Srv : /fsm/run_episode (std_srvs/Trigger)
 // =============================================================================
-#include <algorithm>
+
 #include <array>
 #include <chrono>
 #include <cmath>
 #include <deque>
-#include <functional>
 #include <future>
 #include <limits>
 #include <memory>
-#include <numeric>
 #include <string>
-#include <unordered_map>
+#include <numeric>
 #include <vector>
-
+#include <algorithm>
+#include <functional>
+#include <unordered_map>
 #include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/joint_state.hpp>
 #include <std_msgs/msg/float64.hpp>
 #include <std_srvs/srv/trigger.hpp>
-#include <trajectory_msgs/msg/joint_trajectory.hpp>
-
-#include "rt1_interfaces/msg/episode_info.hpp"
+#include <sensor_msgs/msg/joint_state.hpp>
 #include "rt1_interfaces/msg/fsm_status.hpp"
+#include "rt1_interfaces/msg/episode_info.hpp"
 #include "rt1_interfaces/msg/probe_metrics.hpp"
+#include <trajectory_msgs/msg/joint_trajectory.hpp>
 
 namespace rt1_data_pipeline
 {
@@ -412,8 +411,10 @@ private:
       }
     } else if (new_state == FsmStatusMsg::ROUTE_BIN) {
       const bool to_blue = decided_bin_ == "blue_bin";
-      const double carry_force_n =
-        decided_mass_ == "heavy" ? carry_force_heavy_n_ : carry_force_light_n_;
+      // Rigid blocks touch the fingers on a thin line: almost no friction torque
+      // against rotation, so light+stiff blocks twist out during the swing at 3 N.
+      const double carry_force_n = (decided_mass_ == "heavy" || decided_stiffness_ == "stiff")
+        ? carry_force_heavy_n_ : carry_force_light_n_;
       plan.push_back(setGrip("carry_grip", carry_force_n));
       plan.push_back(waitFor("carry_settle", 0.3));
       plan.push_back(moveArm("carry_raise", carry_, 1.0));

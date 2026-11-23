@@ -187,7 +187,7 @@ class MysterySpawner(Node):
             ["ros2", "run", "ros_gz_sim", "create",
              "-world", self.world_name, "-name", self.model_name, "-string", block_sdf,
              "-x", str(x_m), "-y", str(y_m), "-z", str(z_m)],
-            capture_output=True, text=True, timeout=30)
+            capture_output=True, text=True, timeout=60)
         if result.returncode != 0 or "successful" not in (result.stdout + result.stderr):
             raise RuntimeError(f"spawn failed: {result.stderr.strip()[-300:]}")
 
