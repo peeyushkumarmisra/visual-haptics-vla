@@ -1,0 +1,9 @@
+<library path="rt1_gripper_controller">
+    <class name="rt1_gripper_controller/GripperCenteringController"
+            type="rt1_gripper_controller::GripperCenteringController"
+            base_class_type="controller_interface::ControllerInterface">
+        <description>
+            Two-finger effort gripper: common squeeze F plus a 1 kHz lateral centring PD.
+        </description>
+    </class>
+</library>

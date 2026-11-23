@@ -19,42 +19,47 @@
 #    /joint_states                             position, velocity, effort
 # ==============================================================================
 
-# == 1. CONTROLLER MANAGER ==
+# gz_ros2_control converts arm position commands into velocity commands with
+# a proportional gain that scales with the controller-manager rate. CM went
+# 100 -> 1000 Hz for the gripper loop, so cut the gain 10x to keep the arm's
+# tracking exactly as before (time constant ~0.1 s, no stop-go jerk).
+gz_ros_control:
+    ros__parameters:
+        position_proportional_gain: 0.01
+
+
+# controller_manager runs at 1 kHz (= physics step) so the gripper centring
+# loop is fast enough to be stable; slower controllers set their own rate.
 controller_manager:
-  ros__parameters:
-    # 100 Hz as stock: above the 50 Hz FSM and guardrail rates.
-    update_rate: 100
+    ros__parameters:
+        update_rate: 1000
 
-    joint_state_broadcaster:
-      type: joint_state_broadcaster/JointStateBroadcaster
+        joint_state_broadcaster:
+            type: joint_state_broadcaster/JointStateBroadcaster
+        arm_controller:
+            type: joint_trajectory_controller/JointTrajectoryController
+        gripper_centering_controller:
+            type: rt1_gripper_controller/GripperCenteringController
 
-    arm_controller:
-      type: joint_trajectory_controller/JointTrajectoryController
+joint_state_broadcaster:
+    ros__parameters:
+        update_rate: 100          # keep /joint_states at 100 Hz (not 1 kHz)
 
-    # Replaces the stock position_controllers/GripperActionController.
-    gripper_effort_controller:
-      type: effort_controllers/JointGroupEffortController
-
-# == 2. ARM (copied from stock hardware_controller_manager.yaml) ==
 arm_controller:
-  ros__parameters:
-    joints:
-      - joint1
-      - joint2
-      - joint3
-      - joint4
-    command_interfaces:
-      - position
-    state_interfaces:
-      - position
-      - velocity
-    allow_partial_joints_goal: true
+    ros__parameters:
+        update_rate: 100
+        joints: [joint1, joint2, joint3, joint4]
+        command_interfaces: [position]
+        state_interfaces: [position, velocity]
+        allow_partial_joints_goal: true
 
-# == 3. GRIPPER (force control) ==
-# Both fingers listed so each gets its command explicitly, whether or not
-# Gazebo enforces the URDF mimic constraint between them.
-gripper_effort_controller:
-  ros__parameters:
-    joints:
-      - gripper_left_joint
-      - gripper_right_joint
+gripper_centering_controller:
+    ros__parameters:
+        update_rate: 1000
+        left_joint: gripper_left_joint
+        right_joint: gripper_right_joint
+        centering_stiffness: 150.0
+        centering_damping: 7.5
+        max_squeeze_n: 7.0
+        max_effort_n: 10.0
+        initial_force_n: -1.0

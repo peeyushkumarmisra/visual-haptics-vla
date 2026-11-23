@@ -107,7 +107,7 @@ def generate_launch_description():
 
     jsb_spawner = spawner('joint_state_broadcaster')
     arm_spawner = spawner('arm_controller')
-    gripper_spawner = spawner('gripper_effort_controller')
+    gripper_spawner = spawner('gripper_centering_controller')
 
     # Event chain: robot spawned -> broadcaster -> arm + gripper.
     # Stops spawners racing the gz_ros2_control plugin at startup.
@@ -142,5 +142,5 @@ def generate_launch_description():
         spawn_robot,
         start_jsb_after_spawn,
         start_arm_after_jsb,
-        bridge, gripper_force,
+        bridge,
     ])
