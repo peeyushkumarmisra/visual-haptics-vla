@@ -204,6 +204,6 @@ private:
 }  // namespace rt1_gripper_controller
 
 PLUGINLIB_EXPORT_CLASS(
-  rt1_gripper_controller::GripperCenteringController, 
-  controller_interface::ControllerInterface
+    rt1_gripper_controller::GripperCenteringController, 
+    controller_interface::ControllerInterface
 )
